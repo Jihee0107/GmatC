@@ -50,20 +50,19 @@ button,input{font:inherit;color:inherit}
 .tabs button[aria-selected=true]{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
 
 /* 1) 직접 계산: 이름 | 가로 | × | 세로 | 삭제 */
-.rows-head,.row{display:grid;grid-template-columns:86px minmax(0,1fr) 12px minmax(0,1fr) 34px;gap:6px;align-items:center}
+.rows-head,.row{display:grid;grid-template-columns:minmax(0,1fr) 12px minmax(0,1fr) 34px;gap:6px;align-items:center}
 .rows-head{font-size:12px;color:var(--muted);padding:0 2px 6px;border-bottom:1px solid var(--line)}
-.rows-head span:nth-child(2),.rows-head span:nth-child(4){text-align:center}
+.rows-head span:nth-child(1),.rows-head span:nth-child(3){text-align:center}
 .row{padding:8px 0;border-bottom:1px solid var(--line)}
 input{width:100%;height:44px;border:1px solid var(--line);border-radius:10px;background:#fff;padding:0 10px;font-size:16px}
 input:focus{outline:2px solid var(--brown);outline-offset:-1px;border-color:var(--brown)}
-.row .name{font-weight:700;padding:0 8px}
 .num{text-align:right;font-variant-numeric:tabular-nums;-moz-appearance:textfield;appearance:textfield}
 .num::-webkit-inner-spin-button,.num::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 .row .num.need{border-color:var(--brown);background:#FBF5EC}
 .row .x{text-align:center;color:var(--muted)}
 .row .del{width:34px;height:34px;border:0;border-radius:8px;background:none;color:var(--muted);font-size:20px;line-height:1;cursor:pointer}
 .row .del:hover{background:var(--sand);color:var(--bad)}
-.total{margin:12px 2px 0;display:flex;justify-content:space-between;font-size:13px;color:var(--muted)}
+.total{margin:12px 2px 0;display:flex;justify-content:flex-end;font-size:13px;color:var(--muted)}
 .total b{color:var(--ink);font-variant-numeric:tabular-nums}
 
 /* 2) 평형별 견적: 평형 | 거복 | 거복아 | 거복주 */
@@ -162,11 +161,11 @@ input:focus{outline:2px solid var(--brown);outline-offset:-1px;border-color:var(
 
 <main class="wrap">
   <section class="card" id="panelDirect" role="tabpanel" aria-labelledby="tabDirect">
-    <h2>공간별 크기 <small>단위 : cm</small></h2>
-    <div class="rows-head" aria-hidden="true"><span>공간</span><span>가로</span><span></span><span>세로</span><span></span></div>
+    <h2>계산기 <small>단위 : cm</small></h2>
+    <div class="rows-head" aria-hidden="true"><span>가로</span><span></span><span>세로</span><span></span></div>
     <div id="rows"></div>
-    <button class="btn add" type="button" id="addBtn">+ 공간 추가</button>
-    <p class="total"><span id="totalLabel">합계</span><b id="total">—</b></p>
+    <button class="btn add" type="button" id="addBtn">+ 줄 추가</button>
+    <p class="total"><b id="total">—</b></p>
   </section>
 
   <section class="card" id="panelPy" role="tabpanel" aria-labelledby="tabPy" hidden>
@@ -216,7 +215,7 @@ input:focus{outline:2px solid var(--brown);outline-offset:-1px;border-color:var(
     <button class="btn dark" type="button" id="imgBtn">견적서 저장</button>
   </div>
 
-  <button class="reset" type="button" id="resetBtn">공간 입력 초기화</button>
+  <button class="reset" type="button" id="resetBtn">입력 초기화</button>
 </main>
 
 <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" hidden>
@@ -231,7 +230,8 @@ input:focus{outline:2px solid var(--brown);outline-offset:-1px;border-color:var(
 <script>
 const $ = s => document.querySelector(s);
 const STORE = 'gmat-calc-v1', PRICE_STORE = 'gmat-calc-price-v1', UI_STORE = 'gmat-calc-ui-v1';
-const DEFAULT_ROOMS = ['거실', '복도', '주방', '작은방', '큰방', '발코니'];
+const DEFAULT_ROWS = 6; // 직접 계산 처음 줄 수
+const emptyRows = () => Array.from({ length: DEFAULT_ROWS }, () => ({ w: '', h: '' }));
 
 /* 평형별 표준 수량 [G-80, G-100] — 사장님이 알려준 표 그대로. 칸이 없는 건 견적 없음 */
 const SCOPES = { 거복: '거실, 복도', 거복아: '거실, 복도, 아일랜드 주방', 거복주: '거실, 복도, 주방' };
@@ -246,10 +246,11 @@ const PY_TABLE = [
 ];
 
 /* 시공 지역별 안내 문구 — 견적서 화면·복사 글·이미지에 들어감 ("10만 원"은 줄이 안 갈리게 붙는 띄어쓰기) */
+// name은 화면의 지역 버튼에만 씀 — 고객이 보는 견적서·복사 글·이미지에는 지역 이름을 넣지 않음 (사장님 요청)
 const REGIONS = {
-  metro: { name: '수도권', note: '※ 수도권은 G-80 50장 이하, G-100 35장 이하로 시공할 경우 시공비 10만 원이 추가됩니다.' },
-  chung: { name: '충청권', note: '※ 충청권은 본사 전문 시공팀이 직접 시공하는 원칙에 따라 시공비 10만 원이 추가됩니다.' },
-  local: { name: '지방', note: '※ 지방은 본사 전문 시공팀이 직접 방문하여 시공하는 원칙에 따라 출장비와 시공비가 각 10만 원씩 추가됩니다.' }
+  metro: { name: '수도권', note: '※ G-80 50장 이하, G-100 35장 이하로 시공할 경우 시공비 10만 원이 추가됩니다.' },
+  chung: { name: '충청권', note: '※ 본사 전문 시공팀이 직접 시공하는 원칙에 따라 시공비 10만 원이 추가됩니다.' },
+  local: { name: '지방', note: '※ 본사 전문 시공팀이 직접 방문하여 시공하는 원칙에 따라 출장비와 시공비가 각 10만 원씩 추가됩니다.' }
 };
 
 /* 견적서 이미지에 들어가는 업체 정보 (홈페이지 맨 아래 정보와 같게) */
@@ -276,7 +277,7 @@ const TALKS = [
 https://g-mat.kr
 
 📝 블로그 시공 사례
-https://blog.naver.com/g_mat
+https://blog.naver.com/g_mat_
 
 💬 카카오톡 바로 상담
 https://pf.kakao.com/_wxiEiX
@@ -288,7 +289,7 @@ https://www.youtube.com/@g_mat_official
 https://www.instagram.com/g_mat_official
 
 📞 상담 전화
-1800-2818 / 010-4305-2818` },
+1800-2818 / 010-2863-2818` },
   { title: '할인 안내', text: `지매트 할인 혜택 안내드립니다 😊
 
 ✔ 후기 할인 : 지정 카페에 후기 1건 작성 시 3만 원 할인
@@ -393,7 +394,7 @@ $('#docDate').textContent = DATE;
 
 /* 입력은 이 기기에 자동 저장 (휴대폰에서 다른 앱 갔다 와도 그대로 남게). 단가는 따로 저장해서 초기화해도 남김 */
 function save() {
-  const data = [...rowsEl.children].map(r => ({ name: r.querySelector('.name').value, w: r.querySelector('.w').value, h: r.querySelector('.h').value }));
+  const data = [...rowsEl.children].map(r => ({ w: r.querySelector('.w').value, h: r.querySelector('.h').value }));
   try {
     localStorage.setItem(STORE, JSON.stringify(data));
     localStorage.setItem(PRICE_STORE, JSON.stringify(MATS.map(m => m.p.value)));
@@ -415,20 +416,18 @@ function load() {
     const d = JSON.parse(localStorage.getItem(STORE));
     if (Array.isArray(d) && d.length) return d;
   } catch (e) {}
-  return DEFAULT_ROOMS.map(name => ({ name, w: '', h: '' }));
+  return emptyRows();
 }
 
 /* ===== 1) 직접 계산 ===== */
-function addRow(r = { name: '', w: '', h: '' }) {
+function addRow(r = { w: '', h: '' }) {
   const row = document.createElement('div');
   row.className = 'row';
   row.innerHTML = `
-    <input class="name" type="text" placeholder="공간" maxlength="10" enterkeyhint="next" aria-label="공간 이름">
     <input class="num w" type="number" inputmode="numeric" min="0" placeholder="0" enterkeyhint="next">
     <span class="x" aria-hidden="true">×</span>
     <input class="num h" type="number" inputmode="numeric" min="0" placeholder="0" enterkeyhint="next">
     <button class="del" type="button">×</button>`;
-  row.querySelector('.name').value = r.name;
   row.querySelector('.w').value = r.w;
   row.querySelector('.h').value = r.h;
   rowsEl.appendChild(row);
@@ -438,7 +437,7 @@ function addRow(r = { name: '', w: '', h: '' }) {
 function directQuote() {
   let area = 0, total50 = 0, count = 0;
   [...rowsEl.children].forEach((row, i) => {
-    const name = row.querySelector('.name').value.trim() || `공간${i + 1}`;
+    const name = `${i + 1}번째 줄`;
     const wEl = row.querySelector('.w'), hEl = row.querySelector('.h');
     const w = num(wEl.value), h = num(hEl.value);
     wEl.setAttribute('aria-label', `${name} 가로(cm)`);
@@ -450,9 +449,8 @@ function directQuote() {
     if (w && h) { area += w * h / 10000; total50 += mats50(w, h); count++; }
   });
   // 면적은 입력 칸 아래에만 (견적서·보낼 내용에는 안 넣음)
-  $('#totalLabel').textContent = count ? `합계 (${count}개 공간)` : '합계';
   $('#total').textContent = count ? `${area.toFixed(1)}㎡ · 약 ${(area / 3.3058).toFixed(1)}평` : '—';
-  return { has: count > 0, qty: [toG80(total50), toG100(total50)], scope: '', imgScope: '현장 실측 기준', file: '' };
+  return { has: count > 0, qty: [toG80(total50), toG100(total50)], scope: '', file: '' };
 }
 
 /* ===== 2) 평형별 견적 ===== */
@@ -599,10 +597,9 @@ function spaced(x, text, cx, y, gap) {
 async function drawQuote(q) {
   const W = 1080, P = 80, IW = W - P * 2;
   const hasPrice = MATS.some(m => won(m.p)), items = itemsOf(q);
-  const scope = q.scope || q.imgScope || '', reg = REGIONS[region];
-  const notes = [...(items.length > 1 ? [CHOICE] : []), reg.note, NOTE];
+  const notes = [...(items.length > 1 ? [CHOICE] : []), REGIONS[region].note, NOTE];
   // 글꼴을 다 받은 뒤에 그림 (인터넷이 안 되면 2초 뒤 기본 글꼴로)
-  const used = ['견적서견적일자아래와 같이 견적합니다.시공 지역범위상호대표자사업자번호대표번호견적 내역품목규격수량단가(원)금액(원)장-0123456789,.×()·', reg.name, scope, notes.join(''), Object.values(COMPANY).join(''), MATS.map(m => m.label + m.size).join('')].join('');
+  const used = ['견적서견적일자아래와 같이 견적합니다.상호대표자사업자번호대표번호견적 내역품목규격수량단가(원)금액(원)장-0123456789,.×()·', notes.join(''), Object.values(COMPANY).join(''), MATS.map(m => m.label + m.size).join('')].join('');
   try { await Promise.race([document.fonts.load(font(700, 30), used), new Promise(r => setTimeout(r, 2000))]); } catch (e) {}
 
   const c = document.createElement('canvas');
@@ -633,11 +630,9 @@ async function drawQuote(q) {
   x.fillText('아래와 같이 견적합니다.', P, y);
   y += 38;
 
-  // 정보 표: [이름, 값] 한 쌍이면 한 줄 전체, 두 쌍이면 반씩
+  // 정보 표: 업체 정보만 (시공 지역·범위는 넣지 않음). [이름, 값] 한 쌍이면 한 줄 전체, 두 쌍이면 반씩
   const LW = 168, VW2 = (IW - LW * 2) / 2;
   const info = [
-    [['시공 지역', reg.name]],
-    ...(scope ? [[['시공 범위', scope]]] : []),
     [['상호', COMPANY.name], ['대표자', COMPANY.ceo]],
     [['사업자번호', COMPANY.bizNo], ['대표번호', COMPANY.tel]]
   ];
@@ -728,7 +723,7 @@ async function drawQuote(q) {
 
 /* 견적이 바뀌면 이미지를 미리 만들어 둠 — 아이폰 공유 창은 버튼 누르자마자 열어야 해서 */
 let imgCache = { key: '' }, imgTimer;
-const imgKey = q => JSON.stringify([q.qty, q.scope, q.imgScope, region, MATS.map(m => won(m.p)), DATE]);
+const imgKey = q => JSON.stringify([q.qty, q.scope, region, MATS.map(m => won(m.p)), DATE]);
 async function buildImage(q) {
   const key = imgKey(q);
   if (imgCache.key === key) return imgCache;
@@ -840,12 +835,12 @@ rowsEl.addEventListener('keydown', e => {
 $('#addBtn').addEventListener('click', () => {
   const row = addRow();
   update();
-  row.querySelector('.name').focus();
+  row.querySelector('.w').focus();
 });
 $('#resetBtn').addEventListener('click', () => {
-  if (!confirm('입력한 공간을 모두 지우고 처음 상태로 돌릴까요? (단가는 그대로 남아요)')) return;
+  if (!confirm('입력한 가로·세로를 모두 지울까요? (단가는 그대로 남아요)')) return;
   rowsEl.innerHTML = '';
-  DEFAULT_ROOMS.forEach(name => addRow({ name, w: '', h: '' }));
+  emptyRows().forEach(r => addRow(r));
   update();
 });
 
